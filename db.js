@@ -1,9 +1,10 @@
 // db.js
 const { Pool } = require('pg');
+require('dotenv').config(); // Make sure environment variables are loaded
 
 const pool = new Pool({
-  // Example of a completed, correct connection string
-  connectionString: 'postgresql://postgres:JZv72tdgEgeE92pu@db.nhemgbdlkoqitkwexqxo.supabase.co:5432/postgres',
+  // This will now correctly use the DATABASE_URL from Render
+  connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
   }
