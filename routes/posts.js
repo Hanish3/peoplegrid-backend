@@ -1,5 +1,3 @@
-// In routes/posts.js
-
 const express = require('express');
 const pool = require('../db');
 const authMiddleware = require('../middleware/auth');
@@ -11,20 +9,20 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 router.use(authMiddleware);
 
-// --- GET All Posts (Heavily Updated) ---
+// --- GET All Posts ---
 router.get('/', async (req, res) => {
   try {
     const allPosts = await pool.query(
       `SELECT 
-          p.post_id, p.content, p.created_at, p.post_type, p.title, p.media_url,
-          u.user_id, u.username, u.profile_picture_url,
-          (SELECT COUNT(*) FROM likes WHERE post_id = p.post_id) AS like_count,
-          (SELECT COUNT(*) FROM comments WHERE post_id = p.post_id) AS comment_count,
-          EXISTS(SELECT 1 FROM likes WHERE post_id = p.post_id AND user_id = $1) AS is_liked_by_user
+         p.post_id, p.content, p.created_at, p.post_type, p.title, p.media_url,
+         u.user_id, u.username, u.profile_picture_url,
+         (SELECT COUNT(*) FROM likes WHERE post_id = p.post_id) AS like_count,
+         (SELECT COUNT(*) FROM comments WHERE post_id = p.post_id) AS comment_count,
+         EXISTS(SELECT 1 FROM likes WHERE post_id = p.post_id AND user_id = $1) AS is_liked_by_user
        FROM posts p 
        JOIN users u ON p.user_id = u.user_id 
        ORDER BY p.created_at DESC`,
-      [req.userId]
+       [req.userId]
     );
     res.json(allPosts.rows);
   } catch (err) {
@@ -33,7 +31,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// --- CREATE a New Post (Updated for different types) ---
+// --- CREATE a New Post ---
 router.post('/', upload.single('mediaFile'), async (req, res) => {
   try {
     const { content, title, post_type } = req.body;
@@ -65,7 +63,6 @@ router.post('/:postId/like', async (req, res) => {
   try {
     const { postId } = req.params;
     const userId = req.userId;
-
     const existingLike = await pool.query("SELECT * FROM likes WHERE user_id = $1 AND post_id = $2", [userId, postId]);
 
     if (existingLike.rows.length > 0) {
@@ -86,7 +83,7 @@ router.get('/:postId/comments', async (req, res) => {
     try {
         const { postId } = req.params;
         const comments = await pool.query(
-            `SELECT c.comment_id, c.comment_text, c.created_at, u.username, u.user_id
+            `SELECT c.comment_id, c.comment_text, c.created_at, u.username, u.user_id 
              FROM comments c 
              JOIN users u ON c.user_id = u.user_id 
              WHERE c.post_id = $1 
@@ -105,7 +102,6 @@ router.post('/:postId/comment', async (req, res) => {
     try {
         const { postId } = req.params;
         const { comment_text } = req.body;
-        
         const newComment = await pool.query(
             'INSERT INTO comments (post_id, user_id, comment_text) VALUES ($1, $2, $3) RETURNING *',
             [postId, req.userId, comment_text]
@@ -117,50 +113,16 @@ router.post('/:postId/comment', async (req, res) => {
     }
 });
 
-// --- NEW: DELETE a comment ---
-router.delete('/:postId/comments/:commentId', async (req, res) => {
-  try {
-    const { commentId } = req.params;
-    const loggedInUserId = req.userId; // From our authMiddleware
-
-    // First, verify that the comment belongs to the logged-in user
-    const commentResult = await pool.query('SELECT user_id FROM comments WHERE comment_id = $1', [commentId]);
-    
-    if (commentResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Comment not found.' });
-    }
-
-    const commentAuthorId = commentResult.rows[0].user_id;
-
-    if (commentAuthorId !== loggedInUserId) {
-      // If the user is not the author, forbid the deletion
-      return res.status(403).json({ error: 'You are not authorized to delete this comment.' });
-    }
-
-    // If authorized, delete the comment
-    await pool.query('DELETE FROM comments WHERE comment_id = $1', [commentId]);
-
-    res.json({ message: 'Comment deleted successfully.' });
-
-  } catch (err) {
-    console.error('Delete Comment Error:', err.message);
-    res.status(500).json({ error: 'Server error.' });
-  }
-});
-
-
 // DELETE a post
 router.delete('/:postId', async (req, res) => {
   try {
     const { postId } = req.params;
     const loggedInUserId = req.userId;
     const postResult = await pool.query('SELECT user_id FROM posts WHERE post_id = $1', [postId]);
-    
     if (postResult.rows.length === 0) {
       return res.status(404).json({ error: 'Post not found.' });
     }
     const postAuthorId = postResult.rows[0].user_id;
-
     if (postAuthorId !== loggedInUserId) {
       return res.status(403).json({ error: 'You are not authorized to delete this post.' });
     }
